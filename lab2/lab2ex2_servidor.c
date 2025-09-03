@@ -8,18 +8,18 @@
 
 int main(int argc, char *argv[]){
     int segmento;
-    char *shmaddr;
+    char *endereco;
     char mensagem[1024];
 
     segmento = shmget(KEY, 1024, IPC_CREAT | 0666);
     if (segmento == -1) {
-        perror("shmget");
+        perror("Erro ao criar o segmento de memória compartilhada");
         exit(1);
     }
 
-    shmaddr = shmat(segmento, NULL, 0);
-    if (shmaddr == (char *) -1) {
-        perror("shmat");
+    endereco = shmat(segmento, NULL, 0);
+    if (endereco == (char *) -1) {
+        perror("Erro ao anexar a memória compartilhada");
         exit(1);
     }
 
@@ -27,11 +27,11 @@ int main(int argc, char *argv[]){
     fgets(mensagem, 1024, stdin);
 
 
-    strcpy(shmaddr, mensagem);
+    strcpy(endereco, mensagem);
 
-    printf("Mensagem salva na memória compartilhada: %s\n", shmaddr);
+    printf("Mensagem salva na memória compartilhada: %s\n", endereco);
 
-    shmdt(shmaddr);
+    shmdt(endereco);
 
     return 0;
 }

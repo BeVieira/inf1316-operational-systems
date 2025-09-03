@@ -7,23 +7,23 @@
 
 int main(int argc, char *argv[]){
     int segmento;
-    char *shmaddr;
+    char *endereco;
 
     segmento = shmget(KEY, 1024, 0666);
     if (segmento == -1) {
-        perror("Erro em shmget");
+        perror("Erro ao criar o segmento de memória compartilhada");
         exit(1);
     }
 
-    shmaddr = (char *) shmat(segmento, NULL, 0);
-    if (shmaddr == (char *) -1) {
-        perror("Erro em shmat");
+    endereco = (char *) shmat(segmento, NULL, 0);
+    if (endereco == (char *) -1) {
+        perror("Erro ao anexar a memória compartilhada");
         exit(1);
     }
 
-    printf("Mensagem lida da memória compartilhada: %s\n", shmaddr);
+    printf("Mensagem lida da memória compartilhada: %s\n", endereco);
 
-    shmdt(shmaddr);
+    shmdt(endereco);
 
     return 0;
 }

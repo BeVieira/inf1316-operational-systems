@@ -1,0 +1,7 @@
+# Ignorar binários em qualquer lab
+**/bin/*
+
+# Ignorar executáveis
+*.exe
+*.out
+*.o

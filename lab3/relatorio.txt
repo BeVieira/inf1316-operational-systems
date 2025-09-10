@@ -1,0 +1,91 @@
+5) Faça um programa que leia 2 números e
+imprima o resultado das 4 operações básicas
+sobre estes 2 números.
+- Verifique o que acontece se o 2º. número
+da entrada for 0 (zero)
+- Capture o sinal de erro de floating point
+(SIGFPE) e repita a experiência anterior
+
+-----------------------Código fonte
+#include <stdio.h>
+#include <signal.h>
+#include <stdlib.h>
+
+void trataDivisaoPorZero(int sinal);
+
+int main (int argc, char *argv[]) {
+    if (argc != 3) {
+        printf("Uso: %s <num1> <num2>\n", argv[0]);
+        return 1;
+    }
+    
+    int num1 = atoi(argv[1]);
+    int num2 = atoi(argv[2]);
+
+    signal(SIGFPE, trataDivisaoPorZero);
+    
+    printf("Soma: %d + %d = %d\n", num1, num2, num1 + num2);
+    printf("Subtração: %d - %d = %d\n", num1, num2, num1 - num2);
+    printf("Multiplicação: %d * %d = %d\n", num1, num2, num1 * num2);
+    
+    printf("Divisão: %d / %d = ", num1, num2);
+    printf("%d\n", num1 / num2);
+
+    return 0;
+}
+
+void trataDivisaoPorZero(int sinal) {
+    printf("Erro: Divisão por zero não é permitida.\n");
+    exit(1);
+}   
+----------------------Compilacao
+gcc ex5.c -o ex5
+./ex5 2 1
+./ex5 2 0
+----------------------Saida
+Para 2 1:
+Soma: 2 + 1 = 3
+Subtração: 2 - 1 = 1
+Multiplicação: 2 * 1 = 2
+Divisão: 2 / 1 = 2
+
+Para 2 0 sem a trativa do sinal:
+Soma: 2 + 0 = 2
+Subtração: 2 - 0 = 2
+Multiplicação: 2 * 0 = 0
+Divisão: 2 / 0 = 
+Floating point exception (core dumped)
+
+Para 2 0:
+Soma: 2 + 0 = 2
+Subtração: 2 - 0 = 2
+Multiplicação: 2 * 0 = 0
+Divisão: 2 / 0 = Erro: Divisão por zero não é permitida.
+
+----------------------Reflexao
+Sem a tratativa do sinal, o programa executa normalmente até o ponto
+em que ocorre a divisão por zero. Nesse momento, o sistema operacional
+envia o sinal SIGFPE ao processo, que é encerrado de imediatamente.
+Com a tratativa implementada, quando o erro ocorre, o programa não é
+encerrado imediatamente pelo SO. Em vez disso, a função tratadora é executada,
+exibindo a mensagem de erro e encerrando o programa de forma controlada com exit(1).
+
+-----------------------6) Monitorar Chamadas telefonicas-----------------------
+Faça um programa para monitorar e informar o
+preço de chamadas telefônicas. O programa
+deverá ser executado em background.
+- O início e o término de uma chamada são
+informados através dos sinais SIGUSR1 e
+SIGUSR2, respectivamente.
+- O custo da ligação é de 2 centavos por
+segundo, para ligações de até 1 minuto ou de 1
+centavo por segundo a partir do 2º. minuto, ou
+seja, uma ligação de 1m30s custa R$1,50.
+
+-----------------------Código fonte
+
+----------------------Compilacao
+
+----------------------Saida
+
+----------------------Reflexao

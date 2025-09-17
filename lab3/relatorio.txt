@@ -1,318 +1,300 @@
-5) Faça um programa que leia 2 números e
-imprima o resultado das 4 operações básicas
-sobre estes 2 números.
-- Verifique o que acontece se o 2º. número
-da entrada for 0 (zero)
-- Capture o sinal de erro de floating point
-(SIGFPE) e repita a experiência anterior
+1) Execute o programa “ctrl-c.c”.
+Digite Ctrl-C e Ctrl-\. Analise o resultado.
+Neste mesmo programa, remova os
+comandos signal( ) e repita o teste anterior
+observando os resultados.
 
 -----------------------Código fonte
 #include <stdio.h>
 #include <signal.h>
 #include <stdlib.h>
+#define EVER ;;
 
-void trataDivisaoPorZero(int sinal);
+void intHandler(int sinal);
+void quitHandler(int sinal);
 
-int main (int argc, char *argv[]) {
-    if (argc != 3) {
-        printf("Uso: %s <num1> <num2>\n", argv[0]);
-        return 1;
-    }
-    
-    int num1 = atoi(argv[1]);
-    int num2 = atoi(argv[2]);
-
-    signal(SIGFPE, trataDivisaoPorZero);
-    
-    printf("Soma: %d + %d = %d\n", num1, num2, num1 + num2);
-    printf("Subtração: %d - %d = %d\n", num1, num2, num1 - num2);
-    printf("Multiplicação: %d * %d = %d\n", num1, num2, num1 * num2);
-    
-    printf("Divisão: %d / %d = ", num1, num2);
-    printf("%d\n", num1 / num2);
-
-    return 0;
+int main (void)
+{
+    void (*p)(int); // ponteiro para função que recebe int como
+    // parâmetro
+    p = signal(SIGINT, intHandler);
+    printf("Endereco do manipulador anterior %p\n", p);
+    p = signal(SIGQUIT, quitHandler);
+    printf("Endereco do manipulador anterior %p\n", p);
+    puts ("Ctrl-C desabilitado. Use Ctrl-\\ para terminar");
+    for(EVER);
 }
 
-void trataDivisaoPorZero(int sinal) {
-    printf("Erro: Divisão por zero não é permitida.\n");
-    exit(1);
-}   
+void intHandler(int sinal)
+{
+    printf("Você pressionou Ctrl-C (%d) \n", sinal);
+}
+
+void quitHandler(int sinal)
+{
+    printf("Terminando o processo...\n");
+    exit (0);
+}
 
 ----------------------Compilacao
-gcc ex5.c -o ex5
-./ex5 2 1
-./ex5 2 0
+gcc ex1.c -o ex1
+./ex1
 
 ----------------------Saida
-Para 2 1:
-Soma: 2 + 1 = 3
-Subtração: 2 - 1 = 1
-Multiplicação: 2 * 1 = 2
-Divisão: 2 / 1 = 2
-
-Para 2 0 sem a trativa do sinal:
-Soma: 2 + 0 = 2
-Subtração: 2 - 0 = 2
-Multiplicação: 2 * 0 = 0
-Divisão: 2 / 0 = 
-Floating point exception (core dumped)
-
-Para 2 0:
-Soma: 2 + 0 = 2
-Subtração: 2 - 0 = 2
-Multiplicação: 2 * 0 = 0
-Divisão: 2 / 0 = Erro: Divisão por zero não é permitida.
+Endereco do manipulador anterior 0x0
+Endereco do manipulador anterior 0x0
+Ctrl-C desabilitado. Use Ctrl-\ para terminar
+^\Terminando o processo...
 
 ----------------------Reflexao
-Sem a tratativa do sinal, o programa executa normalmente até o ponto
-em que ocorre a divisão por zero. Nesse momento, o sistema operacional
-envia o sinal SIGFPE ao processo, que é encerrado de imediatamente.
-Com a tratativa implementada, quando o erro ocorre, o programa não é
-encerrado imediatamente pelo SO. Em vez disso, a função tratadora é executada,
-exibindo a mensagem de erro e encerrando o programa de forma controlada com exit(1).
+Com os manipuladores instalados, o Ctrl-C (SIGINT)
+não encerra o processo, apenas imprime uma mensagem, 
+e o Ctrl-\ (SIGQUIT) termina de forma controlada.
+Sem os signal(), ambos voltam ao comportamento padrão 
+do sistema: Ctrl-C mata o processo e Ctrl-\ mata e
+ainda gera core dump. Isso mostra como signal()
+permite alterar o tratamento padrão dos sinais.
 
------------------------6) Monitorar Chamadas telefonicas-----------------------
-Faça um programa para monitorar e informar o preço de chamadas telefônicas.
-O programa deverá ser executado em background. - O início e o término de uma
-chamada são informados através dos sinais SIGUSR1 e SIGUSR2, respectivamente.
-- O custo da ligação é de 2 centavos por segundo, para ligações de até 1 minuto
-ou de 1 centavo por segundo a partir do 2º. minuto, ou seja, uma ligação de 1m30s 
-custa R$1,50.
+-----------------------2) SIGKILL -----------------------
+Tente fazer um programa para interceptar o
+sinal SIGKILL. Você conseguiu? Explique.
 
 -----------------------Código fonte
-
 #define _POSIX_C_SOURCE 200809L
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
 #include <unistd.h>
-#include <time.h>
 
-#define EVER ;;
-
-static volatile sig_atomic_t start_flag = 0;
-static volatile sig_atomic_t stop_flag = 0;
-static volatile sig_atomic_t exit_flag = 0;
-static enum { IDLE=0, IN_CALL=1 } state = IDLE;
-static struct timespec t_start;
-
-void set_flag(int signo) {
-    if (signo == SIGUSR1) start_flag = 1;
-    else if (signo == SIGUSR2) stop_flag = 1;
-    else if (signo == SIGTERM || signo == SIGINT) exit_flag = 1;
-}
-
-long diff_seconds(struct timespec a, struct timespec b) {
-    long sec = b.tv_sec - a.tv_sec;
-    long nsec = b.tv_nsec - a.tv_nsec;
-    if (nsec < 0) { sec -= 1; nsec += 1000000000L; }
-    return sec;
-}
-
-void compute_and_print_price(long secs) {
-    long first = secs > 60 ? 60 : secs;
-    long rest  = secs > 60 ? secs - 60 : 0;
-    long cents = first * 2 + rest * 1;
-    long reais = cents / 100;
-    long centavos = cents % 100;
-    printf("Ligação encerrada: duração = %lds | Preço = R$%ld,%02ld\n", secs, reais, centavos);
+void handler(int signo) {
+    printf("Sinal %d recebido!\n", signo);
     fflush(stdout);
 }
 
 int main(void) {
     struct sigaction sa;
-    sa.sa_handler = set_flag;
+    sa.sa_handler = handler;
     sigemptyset(&sa.sa_mask);
-    sa.sa_flags = SA_RESTART;
-    sigaction(SIGUSR1, &sa, NULL);
-    sigaction(SIGUSR2, &sa, NULL);
-    sigaction(SIGTERM, &sa, NULL);
-    sigaction(SIGINT,  &sa, NULL);
+    sa.sa_flags = 0;
 
+    sigaction(SIGKILL, &sa, NULL);
+
+    printf("PID = %d\n", getpid());
     fflush(stdout);
 
-    for(EVER) {
+    while (1) {
         pause();
-        if (exit_flag) exit(0);
-        if (start_flag) {
-            start_flag = 0;
-            if (state == IDLE) {
-                clock_gettime(CLOCK_MONOTONIC, &t_start);
-                state = IN_CALL;
-                printf("Chamada iniciada\n");
-                fflush(stdout);
-            }
-        }
-        if (stop_flag) {
-            stop_flag = 0;
-            if (state == IN_CALL) {
-                struct timespec now;
-                clock_gettime(CLOCK_MONOTONIC, &now);
-                long secs = diff_seconds(t_start, now);
-                compute_and_print_price(secs);
-                state = IDLE;
-            }
-        }
     }
 }
 
 ----------------------Compilacao
-gcc ex5.c -o ex5
-./ex6 &   
-kill -s SIGUSR1 $(pgrep -n ex6)
-sleep 75
-kill -s SIGUSR2 $(pgrep -n ex6)
-
-./ex6 &   
-kill -s SIGUSR1 $(pgrep -n ex6)
-sleep 10
-kill -s SIGUSR2 $(pgrep -n ex6)
+gcc ex2.c -o ex2
+./ex2
 
 ----------------------Saida
-Para sleep 75:
-
-Chamada iniciada
-Ligação encerrada: duração = 75s | Preço = R$1,35
-
-Para sleep 10:
-
-Chamada iniciada
-Ligação encerrada: duração = 10s | Preço = R$0,20
+PID = 2920
 
 ----------------------Reflexao
+Não é possível interceptar, ignorar ou tratar o SIGKILL.
+Esse sinal é reservados pelo kernel justamente para garantir
+que um processo possa sempre ser finalizado ou parado pelo
+sistema, mesmo que ele tenha bloqueado todos os outros sinais.
 
-O código implementa o monitoramento solicitado 
-no enunciado, utilizando os sinais SIGUSR1 e SIGUSR2 para marcar 
-o início e o fim das chamadas. 
-A função que calcula o tempo usa CLOCK_MONOTONIC, 
-garantindo precisão na medição, e a tarifação é feita de acordo com 
-a regra: 2 centavos por segundo até 60 segundos 
-e 1 centavo por segundo a partir do segundo minuto. 
-
------------------------7) Três programas I/O bound-----------------------
-
-Elabore três programas I/O bound que não terminem (loop de msgs no vídeo).
-- Elabore um programa que seja capaz de executar os 3 programas indicados
-anteriormente e que simule o compartilhamento da CPU entre os 3 processos
-com escalonamento Round-Robin com uma fatia de tempo de 1 segundo para o 
-primeiro processo e de 2 segundos para os demais processos. Execute os
-programas e relate o que aconteceu.
+-----------------------3) Filhocidio.c  -----------------------
+Execute e explique o funcionamento de filhocidio.c
 
 -----------------------Código fonte
-infinito1.c:
-#include <stdio.h>
-#include <unistd.h>
+filhocidio.c
 
-int main() {
-    while (1) {
-        printf("Processo 1 rodando...\n");
-        fflush(stdout);
-        sleep(1);
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <signal.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+
+void childhandler(int signo);
+int delay;
+
+int main(int argc, char *argv[]) {
+    pid_t pid;
+    signal(SIGCHLD, childhandler);
+
+    if ((pid = fork()) < 0) {
+        fprintf(stderr, "Erro ao criar filho\n");
+        exit(-1);
+    }
+
+    if (pid == 0) { /* child */
+        execve(argv[2], 0, 0); /* ou sleep(3); */
+    } else { /* parent */
+        sscanf(argv[1], "%d", &delay); /* read delay from command line */
+        sleep(delay);
+        printf("Program %s exceeded limit of %d seconds!\n", argv[2], delay);
+        kill(pid, SIGKILL);
+        sleep(1); /* necessary for SIGCHLD to arrive */
     }
     return 0;
 }
 
-infinito2.c:
+void childhandler(int signo) { /* Executed if child dies before parent */
+    int status;
+    pid_t pid = wait(&status);
+    printf("Child %d terminated within %d seconds com estado %d.\n", pid, delay, status);
+    exit(0);
+}
+
+sleep5.c
 #include <stdio.h>
 #include <unistd.h>
-
-int main() {
-    while (1) {
-        printf("Processo 2 rodando...\n");
-        fflush(stdout);
-        sleep(1);
-    }
+int main (void)
+{
+    fprintf(stdout, "indo dormir...\n");
+    sleep(5);
+    fprintf(stdout, "Acordei!\n");
     return 0;
 }
 
-infinito3.c:
+sleep15.c
 #include <stdio.h>
 #include <unistd.h>
-
-int main() {
-    while (1) {
-        printf("Processo 3 rodando...\n");
-        fflush(stdout);
-        sleep(1);
-    }
+int main (void)
+{
+    fprintf(stdout, "indo dormir...\n");
+    sleep(15);
+    fprintf(stdout, "Acordei!\n");
     return 0;
 }
 
-ex7.c:
+----------------------Compilacao
+gcc filhocidio.c -o filhocidio
+gcc sleep5.c -o sleep5
+gcc sleep15.c -o sleep15
+./filhocidio 10 ./sleep5
+./filhocidio 10 ./sleep15
+
+----------------------Saida
+Para sleep5:
+indo dormir...
+Acordei!
+Child 4320 terminated within 10 seconds com estado 0.
+
+Para sleep15:
+indo dormir...
+Program ./sleep15 exceeded limit of 10 seconds!
+Child 4412 terminated within 10 seconds com estado 9.
+
+----------------------Reflexao
+O programa cria um processo filho e seu pai controlador,
+limita seu tempo de execução. Se o filho terminar antes
+do limite, o pai recebe SIGCHLD e informa o fim normal. 
+Caso ultrapasse o tempo, o pai envia SIGKILL e encerra à
+força. Assim, o código exemplifica como monitorar e
+controlar a execução de processos com sinais.
+
+-----------------------4) SIGSTOP e SIGCONT -----------------------
+Usando SIGSTOP e SIGCONT faça um programa que crie 
+2 processos filho e alterne a execução dos filhos.
+Após 10 trocas de contexto, o processo pai mata os 
+processos filho.
+OBS: Os processos filho são formados por loops infinitos.
+
+-----------------------Código fonte
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <signal.h>
 #include <sys/wait.h>
 
-int main() {
-    pid_t p[3];
+int main(void) {
+    pid_t f1, f2;
 
-    p[0] = fork();
-    if (p[0] == 0) execl("./infinito1", "infinito1", NULL);
-
-    p[1] = fork();
-    if (p[1] == 0) execl("./infinito2", "infinito2", NULL);
-
-    p[2] = fork();
-    if (p[2] == 0) execl("./infinito3", "infinito3", NULL);
-
-    sleep(1);
-
-    for (int i = 0; i < 3; i++) kill(p[i], SIGSTOP);
-
-    int i = 0;
-    while (1) {
-        kill(p[i], SIGCONT);
-
-        if (i == 0) sleep(1);
-        else sleep(2);
-
-        kill(p[i], SIGSTOP);
-
-        i = (i + 1) % 3;
+    if ((f1 = fork()) == 0) {
+        while (1) {
+            printf("Filho 1 em execução...\n");
+            fflush(stdout);
+            sleep(1);
+        }
     }
 
-    for (int i = 0; i < 3; i++) wait(NULL);
+    if ((f2 = fork()) == 0) {
+        while (1) {
+            printf("Filho 2 em execução...\n");
+            fflush(stdout);
+            sleep(1);
+        }
+    }
+
+    
+    sleep(1);            
+    kill(f1, SIGSTOP);    
+    int i;
+    for (i = 0; i < 10; i++) {
+        kill(f2, SIGCONT);
+        sleep(1);
+        kill(f2, SIGSTOP); 
+
+        kill(f1, SIGCONT); 
+        sleep(1);
+        kill(f1, SIGSTOP); 
+    }
+
+    kill(f1, SIGKILL);
+    kill(f2, SIGKILL);
+
+    wait(NULL);
+    wait(NULL);
+
+    printf("Pai finalizou os filhos após 10 trocas.\n");
     return 0;
 }
 
 ----------------------Compilacao
-gcc infinito1.c -o infinito1
-gcc infinito2.c -o infinito2
-gcc infinito3.c -o infinito3
-gcc ex7.c -o ex7
-./ex7
+gcc ex4.c -o ex4
+./ex4
+
 ----------------------Saida
-Processo 1 rodando...
-Processo 2 rodando...
-Processo 3 rodando...
-Processo 1 rodando...
-Processo 2 rodando...
-Processo 2 rodando...
-Processo 3 rodando...
-Processo 3 rodando...
-Processo 1 rodando...
-Processo 2 rodando...
-Processo 2 rodando...
-Processo 3 rodando...
-Processo 3 rodando...
-Processo 1 rodando...
-Processo 2 rodando...
-Processo 2 rodando...
-Processo 3 rodando...
-Processo 3 rodando...
-Processo 1 rodando...
-Processo 2 rodando...
-Processo 2 rodando...
-^C (Sinal via teclado para interrupção)
+Filho 1 em execução...
+Filho 2 em execução...
+Filho 1 em execução...
+Filho 2 em execução...
+Filho 2 em execução...
+Filho 1 em execução...
+Filho 1 em execução...
+Filho 2 em execução...
+Filho 2 em execução...
+Filho 1 em execução...
+Filho 1 em execução...
+Filho 2 em execução...
+Filho 2 em execução...
+Filho 1 em execução...
+Filho 2 em execução...
+Filho 2 em execução...
+Filho 1 em execução...
+Filho 1 em execução...
+Filho 2 em execução...
+Filho 2 em execução...
+Filho 1 em execução...
+Filho 2 em execução...
+Filho 2 em execução...
+Filho 1 em execução...
+Filho 2 em execução...
+Filho 2 em execução...
+Filho 1 em execução...
+Filho 2 em execução...
+Filho 2 em execução...
+Filho 1 em execução...
+Filho 1 em execução...
+Filho 2 em execução...
+Filho 1 em execução...
+Filho 2 em execução...
+Filho 1 em execução...
+Filho 1 em execução...
+Pai finalizou os filhos após 10 trocas.
 
 ----------------------Reflexao
-O programa ex7 age como um escalonador, executa os três processos I/O bound em
-loop infinito e aplica o algoritmo Round-Robin, alternando sua execução com um
-sleep de 1 segundo para o primeiro e 2 segundos para os demais. Dessa forma,
-as mensagens aparecem intercaladas na tela, o processo 1 aparece em apenas uma linha
-pois há um sleep de um segundo antes que seu processo seja finalizado pelo sinal SIGSTOP,
-já os demais, esperam 2 segundos antes de matar os processos, executa por mais tempo e imprimi
-uma linha a mais, com isso, todos os processos recebem tempo de CPU de forma cíclica.
+O programa demonstra o uso de SIGSTOP e SIGCONT para 
+alternar a execução de dois filhos em loop infinito.
+O pai atua como escalonador simples, controlando os
+turnos de cada processo. Após 10 trocas, envia SIGKILL
+e encerra os filhos.

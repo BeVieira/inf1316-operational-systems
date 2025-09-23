@@ -24,15 +24,15 @@ int main(int argc, char *argv[])
 	if (pid == 0)
 	{
 		close(pipefd[0]);
-		write(pipefd[1], "Hello World!\n", 13);
+		write(pipefd[1], "Salve paizao!\n", 13);
 		close(pipefd[1]);
 		return 0;
 	}
 
 	close(pipefd[1]);
 	bytes_read = read(pipefd[0], buffer, 100);
-	printf("Bytes read: %d\n", bytes_read);
-	printf("Buffer: %s\n", buffer);
+	printf("Pai lendo bytes do filho: %d\n", bytes_read);
+	printf("Filhao: %s\n", buffer);
 	close(pipefd[0]);
 
 	return 0;

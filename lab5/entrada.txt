@@ -1,0 +1,1 @@
+Este arquivo será redirecionado pelo programa ex2.c

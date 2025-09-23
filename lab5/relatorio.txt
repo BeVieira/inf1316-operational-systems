@@ -59,12 +59,90 @@ Faça um programa para redirecionar a entrada e a saída, lendo os dados de um a
 e gerando a saída em outro.
 
 -----------------------Código fonte
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <string.h>
+ 
+int main() {
+    int pipefd[2];
+    pid_t pid;
+    char buffer[1024];
+ 
+    if (pipe(pipefd) == -1) {
+        perror("pipe");
+        exit(EXIT_FAILURE);
+    }
+ 
+    pid = fork();
+ 
+    if (pid < 0) {
+        perror("fork");
+        exit(EXIT_FAILURE);
+    }
+ 
+    if (pid > 0) {
+        // Processo PAI
+        close(pipefd[0]);
+ 
+        FILE *entrada = fopen("entrada.txt", "r");
+        if (entrada == NULL) {
+            perror("fopen entrada.txt");
+            exit(EXIT_FAILURE);
+        }
+ 
+        while (fgets(buffer, sizeof(buffer), entrada) != NULL) {
+            write(pipefd[1], buffer, strlen(buffer));
+        }
+ 
+        fclose(entrada);
+        close(pipefd[1]); 
+ 
+        wait(NULL);
+ 
+    } else {
+        // Processo FILHO
+        close(pipefd[1]);
+ 
+        FILE *saida = fopen("saida.txt", "w");
+        if (saida == NULL) {
+            perror("fopen saida.txt");
+            exit(EXIT_FAILURE);
+        }
+ 
+        dup2(pipefd[0], STDIN_FILENO);
+ 
+        close(pipefd[0]);
+ 
+        while (fgets(buffer, sizeof(buffer), stdin) != NULL) {
+            fprintf(saida, "%s", buffer);
+        }
+ 
+        fclose(saida);
+        exit(EXIT_SUCCESS);
+    }
+ 
+    return 0;
+}
 
 ----------------------Compilacao
+gcc ex2.c -o ex2
+./ex2 | cat saida.txt
 
 ----------------------Saida
+Este arquivo será redirecionado pelo programa ex2.c
 
 ----------------------Reflexao
+Esse exercício me ajudou a entender como funciona a comunicação
+entre processos no Linux usando pipe() e fork(). No código, o
+processo pai lê os dados de um arquivo e envia pelo pipe, enquanto
+o filho redireciona a entrada padrão para o pipe e grava os dados recebidos
+em outro arquivo. Foi interessante ver como o redirecionamento com dup2()
+permite que o filho “escute” o que o pai envia, como se fosse a entrada
+normal do programa. Na prática, consegui aplicar conceitos de processos,
+redirecionamento e manipulação de arquivos de forma integrada.
 
 -----------------------3) Executar 2 processos-----------------------
 Faça um programa para criar um pipe e executar dois processos que são

@@ -218,6 +218,10 @@ gcc ex3.c -o ex3
 5      20     149
 
 ----------------------Reflexao
+O programa simula um pipe da shell. Primeiro ele cria um canal de comunicação
+com pipe(). Depois, com dois fork(), um processo executa o ps e escreve no pipe,
+enquanto o outro executa o wc e lê do pipe. Assim, a saída de um vira a entrada
+do outro, do mesmo jeito que acontece quando usamos ps | wc no terminal.
 
 -----------------------4) Dois processos leitores-----------------------
 Faça um programa que cria dois processos leitores e um processo escritor
@@ -227,13 +231,128 @@ Obs: não force uma alternância controlada por
 SIGSTOP/SIGCONT.
 
 -----------------------Código fonte
-O programa simula um pipe da shell. Primeiro ele cria um canal de comunicação
-com pipe(). Depois, com dois fork(), um processo executa o ps e escreve no pipe,
-enquanto o outro executa o wc e lê do pipe. Assim, a saída de um vira a entrada
-do outro, do mesmo jeito que acontece quando usamos ps | wc no terminal.
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+
+int main() {
+    int fd[2];
+    pid_t pid1, pid2, pid_writer;
+
+    if (pipe(fd) == -1) {
+        perror("pipe");
+        exit(1);
+    }
+
+    // Criar primeiro leitor
+    pid1 = fork();
+    if (pid1 == -1) {
+        perror("fork");
+        exit(1);
+    }
+    if (pid1 == 0) {
+        // Filho leitor 1
+        close(fd[1]);
+        char buffer[64];
+        while (1) {
+            int n = read(fd[0], buffer, sizeof(buffer)-1);
+            if (n <= 0) break;
+            buffer[n] = '\0';
+            printf("Leitor 1 leu: %s", buffer);
+            fflush(stdout);
+            sleep(2); 
+        }
+        close(fd[0]);
+        exit(0);
+    }
+
+    // Criar segundo leitor
+    pid2 = fork();
+    if (pid2 == -1) {
+        perror("fork");
+        exit(1);
+    }
+    if (pid2 == 0) {
+        // Filho leitor 2
+        close(fd[1]);
+        char buffer[64];
+        while (1) {
+            int n = read(fd[0], buffer, sizeof(buffer)-1);
+            if (n <= 0) break;
+            buffer[n] = '\0';
+            printf("Leitor 2 leu: %s", buffer);
+            fflush(stdout);
+            sleep(2);
+        }
+        close(fd[0]);
+        exit(0);
+    }
+
+    // Criar escritor
+    pid_writer = fork();
+    if (pid_writer == -1) {
+        perror("fork");
+        exit(1);
+    }
+    if (pid_writer == 0) {
+        // Filho escritor
+        close(fd[0]);
+        int i = 1;
+        while (i <= 10) {
+            char msg[64];
+            snprintf(msg, sizeof(msg), "Mensagem %d\n", i++);
+            write(fd[1], msg, strlen(msg));
+            printf("Escritor escreveu: %s", msg);
+            fflush(stdout);
+            sleep(1); 
+        }
+        close(fd[1]);
+        exit(0);
+    }
+
+    // Processo pai
+    close(fd[0]);
+    close(fd[1]);
+    wait(NULL);
+    wait(NULL);
+    wait(NULL);
+
+    return 0;
+}
 
 ----------------------Compilacao
-
+gcc ex4.c -o ex4
+./ex4
 ----------------------Saida
+Escritor escreveu: Mensagem 1
+Leitor 1 leu: Mensagem 1
+Escritor escreveu: Mensagem 2
+Leitor 2 leu: Mensagem 2
+Escritor escreveu: Mensagem 3
+Leitor 1 leu: Mensagem 3
+Escritor escreveu: Mensagem 4
+Leitor 2 leu: Mensagem 4
+Escritor escreveu: Mensagem 5
+Leitor 1 leu: Mensagem 5
+Escritor escreveu: Mensagem 6
+Leitor 2 leu: Mensagem 6
+Escritor escreveu: Mensagem 7
+Leitor 1 leu: Mensagem 7
+Escritor escreveu: Mensagem 8
+Leitor 2 leu: Mensagem 8
+Escritor escreveu: Mensagem 9
+Leitor 1 leu: Mensagem 9
+Escritor escreveu: Mensagem 10
+Leitor 2 leu: Mensagem 10
 
 ----------------------Reflexao
+Nesse programa criamos um escritor e dois leitores compartilhando
+o mesmo pipe. O escritor escreve mensagens mais rápido, enquanto
+os leitores consomem mais devagar. Como os dois leitores competem
+pela mesma entrada, cada um pega apenas parte dos dados, e às vezes
+até dividem uma mesma mensagem. Isso mostra que o pipe garante a ordem
+dos dados, mas não garante que todos os processos leitores receberão as
+mesmas informações. É o sistema operacional que decide quem vai ler primeiro,
+sem alternância controlada.

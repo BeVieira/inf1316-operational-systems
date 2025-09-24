@@ -7,7 +7,7 @@ l O número e enunciado do exercício
 5 Um texto com uma reflexão sobre a razão de ter obtido esse resultado
 
 Enviar por email o relatório por email com o título:
-[INF1316] Lab # - NomeAluno1, NomeAluno2
+[INF1316] Lab # - Bernardo Vieira e João Victor Francisco
 pedronoba25@gmail.com
 endler@inf.puc-rio.br
 

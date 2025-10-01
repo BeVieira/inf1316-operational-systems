@@ -1,0 +1,114 @@
+
+-----------------------1) Comunicação entre dois processos usando FIFO---------------------------
+Abra duas seções de terminais:
+- Na primeira, execute um programa que fica em
+loop lendo de uma FIFO para depois escrever na
+saída padrão (tela)
+- Na segunda, execute um programa que fica lendo
+da entrada padrão (teclado) e depois escreve na
+mesma FIFO 
+
+-----------------------Código fonte
+ex1-leitor.c:
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <string.h>
+
+#define FIFO_NOME "minhaFifo"
+
+int main() {
+    int fd;
+    char buffer[1024];
+    int bytes_lidos;
+
+    if (mkfifo(FIFO_NOME, S_IRUSR | S_IWUSR) == -1) {
+        perror("mkfifo");
+    }
+
+    printf("Aguardando um escritor...\n");
+    
+    fd = open(FIFO_NOME, O_RDONLY);
+    if (fd == -1) {
+        perror("open");
+        return 1;
+    }
+
+    printf("Leitor pronto. Lendo mensagens da FIFO:\n");
+
+    while ((bytes_lidos = read(fd, buffer, sizeof(buffer) - 1)) > 0) {
+        buffer[bytes_lidos] = '\0';
+        printf("Recebido: %s", buffer);
+    }
+
+    close(fd);
+    unlink(FIFO_NOME);
+
+    return 0;
+}
+
+ex1-escritor.c:
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <string.h>
+
+#define FIFO_NOME "minhaFifo"
+
+int main() {
+    int fd;
+    char buffer[1024];
+
+    fd = open(FIFO_NOME, O_WRONLY);
+    if (fd == -1) {
+        perror("open");
+        return 1;
+    }
+    
+    printf("Escritor pronto. Digite suas mensagens (Ctrl+D para sair):\n");
+
+    while (fgets(buffer, sizeof(buffer), stdin) != NULL) {
+        write(fd, buffer, strlen(buffer));
+    }
+
+    printf("\nSaindo do escritor.\n");
+    close(fd);
+
+    return 0;
+}
+----------------------Compilacao
+gcc -o leitor ex1-leitor.c
+gcc -o escritor ex1-escritor.c
+
+----------------------Saida
+
+Terminal 1 (leitor):
+$ ./leitor
+Aguardando um escritor...
+Leitor pronto. Lendo mensagens da FIFO:
+Recebido: alo
+Recebido: Tudo bem?
+Recebido: Como você se chama?
+
+
+Terminal 2 (escritor):
+$ ./escritor
+Escritor pronto. Digite suas mensagens (Ctrl+D para sair):
+alo 
+Tudo bem?
+Como você se chama?
+              
+Saindo do escritor.
+
+----------------------Reflexao
+A comunicação é feita via FIFO, um tipo especial de arquivo 
+visível no sistema de arquivos que permite 
+a comunicação entre dois processos quaisquer. 
+O processo escritor envia dados para o arquivo FIFO, 
+enquanto o leitor lê os dados deste mesmo arquivo.

@@ -7,32 +7,36 @@
 
 #define FIFO_NOME "minhaFifo"
 
-int main() {
-    int fd;
-    char buffer[1024];
-    int bytes_lidos;
+int main()
+{
+  int fd;
+  char buffer[1024];
+  int bytes_lidos;
 
-    if (mkfifo(FIFO_NOME, S_IRUSR | S_IWUSR) == -1) {
-        perror("mkfifo");
-    }
+  if (mkfifo(FIFO_NOME, S_IRUSR | S_IWUSR) == -1)
+  {
+    perror("mkfifo");
+  }
 
-    printf("Aguardando um escritor...\n");
-    
-    fd = open(FIFO_NOME, O_RDONLY);
-    if (fd == -1) {
-        perror("open");
-        return 1;
-    }
+  printf("Aguardando um escritor...\n");
 
-    printf("Leitor pronto. Lendo mensagens da FIFO:\n");
+  fd = open(FIFO_NOME, O_RDONLY);
+  if (fd == -1)
+  {
+    perror("open");
+    return 1;
+  }
 
-    while ((bytes_lidos = read(fd, buffer, sizeof(buffer) - 1)) > 0) {
-        buffer[bytes_lidos] = '\0';
-        printf("Recebido: %s", buffer);
-    }
+  printf("Leitor pronto. Lendo mensagens da FIFO:\n");
 
-    close(fd);
-    unlink(FIFO_NOME);
+  while ((bytes_lidos = read(fd, buffer, sizeof(buffer) - 1)) > 0)
+  {
+    buffer[bytes_lidos] = '\0';
+    printf("Recebido: %s", buffer);
+  }
 
-    return 0;
+  close(fd);
+  unlink(FIFO_NOME);
+
+  return 0;
 }

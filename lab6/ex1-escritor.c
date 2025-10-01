@@ -7,24 +7,27 @@
 
 #define FIFO_NOME "minhaFifo"
 
-int main() {
-    int fd;
-    char buffer[1024];
+int main()
+{
+  int fd;
+  char buffer[1024];
 
-    fd = open(FIFO_NOME, O_WRONLY);
-    if (fd == -1) {
-        perror("open");
-        return 1;
-    }
-    
-    printf("Escritor pronto. Digite suas mensagens (Ctrl+D para sair):\n");
+  fd = open(FIFO_NOME, O_WRONLY);
+  if (fd == -1)
+  {
+    perror("open");
+    return 1;
+  }
 
-    while (fgets(buffer, sizeof(buffer), stdin) != NULL) {
-        write(fd, buffer, strlen(buffer));
-    }
+  printf("Escritor pronto. Digite suas mensagens (Ctrl+D para sair):\n");
 
-    printf("\nSaindo do escritor.\n");
-    close(fd);
+  while (fgets(buffer, sizeof(buffer), stdin) != NULL)
+  {
+    write(fd, buffer, strlen(buffer));
+  }
 
-    return 0;
+  printf("\nSaindo do escritor.\n");
+  close(fd);
+
+  return 0;
 }

@@ -198,3 +198,194 @@ para os clientes. O servidor deverá rodar em
 background e transformar cada palavra
 recebida de minusculas para maiúsculas. 
 
+-----------------------Código fonte
+servidor.c:
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <string.h>
+#include <ctype.h>
+
+#define FIFO_SERVIDOR "servidor_fifo"
+
+typedef struct
+{
+  pid_t pid_cliente;
+  char texto[256];
+} Mensagem;
+
+int main()
+{
+  int fd_leitura, fd_cliente;
+  Mensagem msg;
+  char fifo_cliente_nome[50];
+
+  unlink(FIFO_SERVIDOR);
+  if (mkfifo(FIFO_SERVIDOR, S_IRUSR | S_IWUSR) == -1)
+  {
+    perror("mkfifo");
+    return 1;
+  }
+
+  printf("Servidor online. Use Ctrl+C para encerrar.\n");
+
+  while (1)
+  {
+    fd_leitura = open(FIFO_SERVIDOR, O_RDONLY);
+    if (fd_leitura == -1)
+    {
+      perror("open (leitura)");
+      return 1;
+    }
+
+    printf("Aguardando cliente...\n");
+
+    ssize_t bytes_lidos;
+    while ((bytes_lidos = read(fd_leitura, &msg, sizeof(Mensagem))) > 0)
+    {
+      printf("Servidor recebeu de [%d]: %s\n", msg.pid_cliente, msg.texto);
+      for (int i = 0; msg.texto[i]; i++)
+      {
+        msg.texto[i] = toupper(msg.texto[i]);
+      }
+
+      sprintf(fifo_cliente_nome, "cliente_%d_fifo", msg.pid_cliente);
+      fd_cliente = open(fifo_cliente_nome, O_WRONLY);
+      if (fd_cliente != -1)
+      {
+        write(fd_cliente, &msg, sizeof(Mensagem));
+        close(fd_cliente);
+      }
+    }
+
+    close(fd_leitura);
+    printf("Cliente desconectado. Servidor reiniciando...\n");
+  }
+
+  return 0;
+}
+
+cliente.c:
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <string.h>
+
+#define FIFO_SERVIDOR "servidor_fifo"
+
+typedef struct
+{
+  pid_t pid_cliente;
+  char texto[256];
+} Mensagem;
+
+int main()
+{
+  int fd_servidor_escrita, fd_cliente_leitura;
+  Mensagem msg;
+  char fifo_cliente_nome[50];
+
+  msg.pid_cliente = getpid();
+  sprintf(fifo_cliente_nome, "cliente_%d_fifo", msg.pid_cliente);
+
+  unlink(fifo_cliente_nome);
+  if (mkfifo(fifo_cliente_nome, S_IRUSR | S_IWUSR) == -1)
+  {
+    perror("mkfifo cliente");
+    return 1;
+  }
+
+  fd_servidor_escrita = open(FIFO_SERVIDOR, O_WRONLY);
+  if (fd_servidor_escrita == -1)
+  {
+    perror("Servidor nao esta em execucao");
+    unlink(fifo_cliente_nome);
+    return 1;
+  }
+
+  printf("Cliente conectado. Digite uma mensagem ou pressione Ctrl+D para encerrar.\n");
+
+  while (1)
+  {
+    printf("> ");
+    if (fgets(msg.texto, sizeof(msg.texto), stdin) == NULL)
+    {
+      printf("\nDetectado Ctrl+D. ");
+      break;
+    }
+    msg.texto[strcspn(msg.texto, "\n")] = 0;
+
+    write(fd_servidor_escrita, &msg, sizeof(Mensagem));
+
+    fd_cliente_leitura = open(fifo_cliente_nome, O_RDONLY);
+    if (fd_cliente_leitura == -1)
+    {
+      perror("open cliente fifo leitura");
+      break;
+    }
+
+    if (read(fd_cliente_leitura, &msg, sizeof(Mensagem)) > 0)
+    {
+      printf("Servidor: %s\n", msg.texto);
+    }
+    else
+    {
+      printf("Erro ao ler resposta do servidor.\n");
+      close(fd_cliente_leitura);
+      break;
+    }
+
+    close(fd_cliente_leitura);
+  }
+
+  printf("Encerrando cliente.\n");
+  close(fd_servidor_escrita);
+  unlink(fifo_cliente_nome);
+
+  return 0;
+}
+
+----------------------Compilacao
+gcc -o servidor servidor.c
+gcc -o cliente cliente.c
+
+----------------------Execucao
+Terminal 1 (servidor):
+$ ./servidor
+Servidor online. Use Ctrl+C para encerrar.
+Aguardando cliente...
+Servidor recebeu de [6590]: alo
+Cliente desconectado. Servidor reiniciando...
+Aguardando cliente...
+Servidor recebeu de [6695]: Eu sou o mestre que ta usando o terminal 1
+Servidor recebeu de [6653]: eu sou o iniciante do terminal 2
+Cliente desconectado. Servidor reiniciando...
+^C
+
+Terminal 2 (cliente):
+$ ./cliente
+Cliente conectado. Digite uma mensagem ou pressione Ctrl+D para encerrar.
+> Eu sou o mestre que ta usando o terminal 1
+Servidor: EU SOU O MESTRE QUE TA USANDO O TERMINAL 1
+> 
+Detectado Ctrl+D. Encerrando cliente.
+
+Terminal 3 (cliente):
+$ ./cliente
+Cliente conectado. Digite uma mensagem ou pressione Ctrl+D para encerrar.
+> eu sou o iniciante do terminal 2
+Servidor: EU SOU O INICIANTE DO TERMINAL 2
+> 
+Detectado Ctrl+D. Encerrando cliente.
+
+----------------------Reflexao
+O servidor cria uma FIFO pública para receber mensagens dos clientes.
+Cada cliente cria sua própria FIFO privada para receber respostas do servidor.
+O servidor lê mensagens da FIFO pública, processa (converte para maiúsculas)
+e envia a resposta de volta para a FIFO privada do cliente.
+A comunicação é bidirecional e permite múltiplos clientes se conectarem ao servidor.

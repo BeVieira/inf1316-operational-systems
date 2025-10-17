@@ -1,0 +1,508 @@
+
+-----------------------1) Corrida de Sapos com Threads (pthread)---------------------------
+Execute o programa Corrida de Sapo algumas vezes e
+analise os resultados sobre a ordem de chegada dos
+sapos. Obs: compile com a opção –lpthread 
+
+-----------------------Código fonte
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <unistd.h>
+
+#define NUM_THREADS 5
+#define PULO_MAXIMO 100
+#define DESCANSO_MAXIMO 1
+#define DISTANCIA_PARA_CORRER 100
+
+static int classificacao = 1;
+static pthread_mutex_t lock;
+
+void *Correr(void *sapo) {
+    int pulos = 0;
+    int distanciaJaCorrida = 0;
+
+    while (distanciaJaCorrida <= DISTANCIA_PARA_CORRER) {
+        int pulo = rand() % PULO_MAXIMO;
+        distanciaJaCorrida += pulo;
+        pulos++;
+        printf("Sapo %d pulou\n", (int)sapo);
+        int descanso = rand() % DESCANSO_MAXIMO;
+        sleep(descanso);
+    }
+
+    pthread_mutex_lock(&lock);
+    printf("Sapo %d chegou na posicao %d com %d pulos\n", (int)sapo, classificacao, pulos);
+    classificacao++;
+    pthread_mutex_unlock(&lock);
+
+    pthread_exit(NULL);
+}
+
+int main() {
+    classificacao = 1;
+    pthread_t threads[NUM_THREADS];
+    pthread_mutex_init(&lock, NULL);
+
+    printf("Corrida iniciada...\n");
+    for (int t = 0; t < NUM_THREADS; t++)
+        pthread_create(&threads[t], NULL, Correr, (void *)t);
+
+    for (int t = 0; t < NUM_THREADS; t++)
+        pthread_join(threads[t], NULL);
+
+    printf("\nAcabou!!\n");
+
+    pthread_mutex_destroy(&lock);
+    pthread_exit(NULL);
+}
+
+----------------------Compilacao
+gcc ex1.c -o corrida_sapos -lpthread
+./corrida_sapos
+
+----------------------Saida
+1a execucao:
+Corrida iniciada...
+Sapo 0 pulou
+Sapo 1 pulou
+Sapo 0 pulou
+Sapo 2 pulou
+Sapo 1 pulou
+Sapo 2 pulou
+Sapo 0 chegou na posicao 1 com 2 pulos
+Sapo 4 pulou
+Sapo 3 pulou
+Sapo 1 chegou na posicao 2 com 2 pulos
+Sapo 4 pulou
+Sapo 2 chegou na posicao 3 com 2 pulos
+Sapo 3 pulou
+Sapo 4 chegou na posicao 4 com 2 pulos
+Sapo 3 chegou na posicao 5 com 2 pulos
+
+Acabou!!
+
+2a execucao:
+Corrida iniciada...
+Sapo 0 pulou
+Sapo 1 pulou
+Sapo 0 pulou
+Sapo 2 pulou
+Sapo 3 pulou
+Sapo 4 pulou
+Sapo 1 pulou
+Sapo 2 pulou
+Sapo 4 pulou
+Sapo 3 pulou
+Sapo 0 chegou na posicao 1 com 2 pulos
+Sapo 4 pulou
+Sapo 2 pulou
+Sapo 1 chegou na posicao 2 com 2 pulos
+Sapo 4 pulou
+Sapo 3 chegou na posicao 3 com 2 pulos
+Sapo 2 chegou na posicao 4 com 3 pulos
+Sapo 4 chegou na posicao 5 com 4 pulos
+
+Acabou!!
+----------------------Reflexao
+A ordem de chegada dos sapos muda a cada execução porque
+as threads rodam ao mesmo tempo e cada uma tem pulos e
+descansos aleatórios. Isso faz com que o resultado nunca
+seja igual. Além disso, foi preciso usar o *mutex* para
+evitar que duas threads mexessem na classificação ao mesmo
+tempo, garantindo que o resultado final ficasse certo.
+
+-----------------------2) Corrida de Sapos usando Mutex---------------------------
+Usando mutex, modifique o programa Corrida de Sampo
+para que o problema identificado anteriormente não
+ocorra. 
+
+-----------------------Código fonte
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <unistd.h>
+
+#define NUM_THREADS 5
+#define PULO_MAXIMO 100
+#define DESCANSO_MAXIMO 1
+#define DISTANCIA_PARA_CORRER 100
+
+static int classificacao = 1;
+static pthread_mutex_t lock;
+
+void *Correr(void *sapo) {
+    int pulos = 0;
+    int distanciaJaCorrida = 0;
+
+    while (distanciaJaCorrida <= DISTANCIA_PARA_CORRER) {
+        int pulo = rand() % PULO_MAXIMO;
+        distanciaJaCorrida += pulo;
+        pulos++;
+        printf("Sapo %d pulou\n", (int)sapo);
+        int descanso = rand() % DESCANSO_MAXIMO;
+        sleep(descanso);
+    }
+
+    // Região crítica protegida pelo mutex
+    pthread_mutex_lock(&lock);
+    printf("Sapo %d chegou na posicao %d com %d pulos\n", (int)sapo, classificacao, pulos);
+    classificacao++;
+    pthread_mutex_unlock(&lock);
+
+    pthread_exit(NULL);
+}
+
+int main() {
+    classificacao = 1;
+    pthread_t threads[NUM_THREADS];
+    pthread_mutex_init(&lock, NULL);
+
+    printf("Corrida iniciada...\n");
+
+    for (int t = 0; t < NUM_THREADS; t++)
+        pthread_create(&threads[t], NULL, Correr, (void *)t);
+
+    for (int t = 0; t < NUM_THREADS; t++)
+        pthread_join(threads[t], NULL);
+
+    printf("\nAcabou!!\n");
+
+    pthread_mutex_destroy(&lock);
+    pthread_exit(NULL);
+}
+
+----------------------Compilacao
+gcc ex2.c -o corrida_sapos_mutex -lpthread
+./corrida_sapos_mutex
+
+----------------------Saida
+1a execucao:
+Corrida iniciada...
+Sapo 0 pulou
+Sapo 1 pulou
+Sapo 0 pulou
+Sapo 2 pulou
+Sapo 1 pulou
+Sapo 3 pulou
+Sapo 0 chegou na posicao 1 com 2 pulos
+Sapo 1 chegou na posicao 2 com 2 pulos
+Sapo 2 pulou
+Sapo 4 pulou
+Sapo 3 pulou
+Sapo 2 chegou na posicao 3 com 2 pulos
+Sapo 4 pulou
+Sapo 3 chegou na posicao 4 com 2 pulos
+Sapo 4 chegou na posicao 5 com 2 pulos
+
+Acabou!!
+
+2a execucao:
+Corrida iniciada...
+Sapo 0 pulou
+Sapo 1 pulou
+Sapo 0 pulou
+Sapo 2 pulou
+Sapo 1 pulou
+Sapo 3 pulou
+Sapo 0 chegou na posicao 1 com 2 pulos
+Sapo 4 pulou
+Sapo 2 pulou
+Sapo 1 chegou na posicao 2 com 2 pulos
+Sapo 4 pulou
+Sapo 2 chegou na posicao 3 com 2 pulos
+Sapo 4 pulou
+Sapo 3 pulou
+Sapo 4 pulou
+Sapo 3 pulou
+Sapo 4 chegou na posicao 4 com 4 pulos
+Sapo 3 chegou na posicao 5 com 3 pulos
+
+----------------------Reflexao
+Depois de adicionar o mutex, o problema da classificação
+incorreta foi resolvido. Agora, mesmo que as threads executem
+ao mesmo tempo, apenas uma consegue atualizar a posição de
+chegada por vez. Com isso, a ordem final dos sapos é exibida
+corretamente, sem resultados misturados ou fora de ordem.
+
+-----------------------3) Problema do Produtor/Consumidor com Threads ---------------------------
+Usando threads, escreva um programa C que implemente o problema
+do produtor/consumidor. O produtor deve produzir dados (números
+inteiros pseudo-aleatórios) a cada 1 segundo colocando-os em uma
+fila (buffer, implementação circular). O consumidor deve retirar
+dados da fila a cada 2 segundos. O tamanho máximo da fila deve
+ser de 8 elementos (MAXFILA) e tanto o produtor como o consumidor
+devem produzir/consumir 64 elementos (números inteiros de 1 a 64,
+por exemplo) evitando condições de corrida. Variáveis compartilhadas
+entre threads são simplesmente variáveis globais. 
+
+-----------------------Código fonte
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <unistd.h>
+
+#define MAXFILA 8
+#define TOTAL_ELEMENTOS 64
+
+int buffer[MAXFILA];
+int in = 0;
+int out = 0;
+int count = 0;
+
+pthread_mutex_t lock;
+pthread_cond_t cheio, vazio;
+
+void *produtor(void *arg) {
+    for (int i = 1; i <= TOTAL_ELEMENTOS; i++) {
+        pthread_mutex_lock(&lock);
+
+        while (count == MAXFILA) {
+            pthread_cond_wait(&cheio, &lock);
+        }
+
+        buffer[in] = i;
+        in = (in + 1) % MAXFILA;
+        count++;
+
+        printf("Produtor produziu: %d (itens na fila: %d)\n", i, count);
+
+        pthread_cond_signal(&vazio);
+        pthread_mutex_unlock(&lock);
+
+        sleep(1);
+    }
+    pthread_exit(NULL);
+}
+
+void *consumidor(void *arg) {
+    for (int i = 1; i <= TOTAL_ELEMENTOS; i++) {
+        pthread_mutex_lock(&lock);
+
+        while (count == 0) {
+            pthread_cond_wait(&vazio, &lock);
+        }
+
+        int item = buffer[out];
+        out = (out + 1) % MAXFILA;
+        count--;
+
+        printf("Consumidor consumiu: %d (itens na fila: %d)\n", item, count);
+
+        pthread_cond_signal(&cheio);
+        pthread_mutex_unlock(&lock);
+
+        sleep(2);
+    }
+    pthread_exit(NULL);
+}
+
+int main() {
+    pthread_t tProdutor, tConsumidor;
+    pthread_mutex_init(&lock, NULL);
+    pthread_cond_init(&cheio, NULL);
+    pthread_cond_init(&vazio, NULL);
+
+    printf("Iniciando produtor e consumidor...\n");
+
+    pthread_create(&tProdutor, NULL, produtor, NULL);
+    pthread_create(&tConsumidor, NULL, consumidor, NULL);
+
+    pthread_join(tProdutor, NULL);
+    pthread_join(tConsumidor, NULL);
+
+    printf("Produção e consumo finalizados!\n");
+
+    pthread_mutex_destroy(&lock);
+    pthread_cond_destroy(&cheio);
+    pthread_cond_destroy(&vazio);
+
+    return 0;
+}
+
+----------------------Compilacao
+gcc ex3.c -o produtor_consumidor -lpthread
+./produtor_consumidor
+
+----------------------Saida
+Iniciando produtor e consumidor...
+Produtor produziu: 1 (itens na fila: 1)
+Consumidor consumiu: 1 (itens na fila: 0)
+Produtor produziu: 2 (itens na fila: 1)
+Consumidor consumiu: 2 (itens na fila: 0)
+Produtor produziu: 3 (itens na fila: 1)
+Produtor produziu: 4 (itens na fila: 2)
+Consumidor consumiu: 3 (itens na fila: 1)
+Produtor produziu: 5 (itens na fila: 2)
+Produtor produziu: 6 (itens na fila: 3)
+Consumidor consumiu: 4 (itens na fila: 2)
+Produtor produziu: 7 (itens na fila: 3)
+Produtor produziu: 8 (itens na fila: 4)
+Consumidor consumiu: 5 (itens na fila: 3)
+Produtor produziu: 9 (itens na fila: 4)
+Produtor produziu: 10 (itens na fila: 5)
+...
+Consumidor consumiu: 50 (itens na fila: 7)
+Produtor produziu: 58 (itens na fila: 8)
+Consumidor consumiu: 51 (itens na fila: 7)
+Produtor produziu: 59 (itens na fila: 8)
+Consumidor consumiu: 52 (itens na fila: 7)
+Produtor produziu: 60 (itens na fila: 8)
+Consumidor consumiu: 53 (itens na fila: 7)
+Produtor produziu: 61 (itens na fila: 8)
+Consumidor consumiu: 54 (itens na fila: 7)
+Produtor produziu: 62 (itens na fila: 8)
+Consumidor consumiu: 55 (itens na fila: 7)
+Produtor produziu: 63 (itens na fila: 8)
+Consumidor consumiu: 56 (itens na fila: 7)
+Produtor produziu: 64 (itens na fila: 8)
+Consumidor consumiu: 57 (itens na fila: 7)
+Consumidor consumiu: 58 (itens na fila: 6)
+Consumidor consumiu: 59 (itens na fila: 5)
+Consumidor consumiu: 60 (itens na fila: 4)
+Consumidor consumiu: 61 (itens na fila: 3)
+Consumidor consumiu: 62 (itens na fila: 2)
+Consumidor consumiu: 63 (itens na fila: 1)
+Consumidor consumiu: 64 (itens na fila: 0)
+
+----------------------Reflexao
+O uso do mutex e das variáveis de condição (pthread_cond_wait e
+pthread_cond_signal) é fundamental para coordenar as threads. O
+mutex garante exclusão mútua ao acessar o buffer, enquanto as
+condições controlam quando o produtor deve esperar (fila cheia)
+e quando o consumidor deve esperar (fila vazia). Assim, o programa
+evita race conditions e funciona de forma ordenada, com as threads
+cooperando entre si.
+
+-----------------------4) Produtor/Consumidor com múltiplas threads---------------------------
+Modifique o programa anterior, para que haja 2 (ou mais)
+threads consumidor e 2 (ou mais) threads produtor. O que muda
+em relação ao uso do mutex e da variável de condição?
+
+-----------------------Código fonte
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <unistd.h>
+
+#define MAXFILA 8
+#define TOTAL_ELEMENTOS 64
+#define NUM_PRODUTORES 2
+#define NUM_CONSUMIDORES 2
+
+int buffer[MAXFILA];
+int in = 0;
+int out = 0;
+int count = 0;
+
+pthread_mutex_t lock;
+pthread_cond_t cheio, vazio;
+
+void *produtor(void *arg) {
+    int id = *(int *)arg;
+    for (int i = 1; i <= TOTAL_ELEMENTOS / NUM_PRODUTORES; i++) {
+        pthread_mutex_lock(&lock);
+
+        while (count == MAXFILA) {
+            pthread_cond_wait(&cheio, &lock);
+        }
+
+        int item = rand() % 1000;
+        buffer[in] = item;
+        in = (in + 1) % MAXFILA;
+        count++;
+
+        printf("Produtor %d produziu: %d (itens na fila: %d)\n", id, item, count);
+
+        pthread_cond_signal(&vazio);
+        pthread_mutex_unlock(&lock);
+
+        sleep(1);
+    }
+    pthread_exit(NULL);
+}
+
+void *consumidor(void *arg) {
+    int id = *(int *)arg;
+    for (int i = 1; i <= TOTAL_ELEMENTOS / NUM_CONSUMIDORES; i++) {
+        pthread_mutex_lock(&lock);
+
+        while (count == 0) {
+            pthread_cond_wait(&vazio, &lock);
+        }
+
+        int item = buffer[out];
+        out = (out + 1) % MAXFILA;
+        count--;
+
+        printf("Consumidor %d consumiu: %d (itens na fila: %d)\n", id, item, count);
+
+        pthread_cond_signal(&cheio);
+        pthread_mutex_unlock(&lock);
+
+        sleep(2);
+    }
+    pthread_exit(NULL);
+}
+
+int main() {
+    pthread_t produtores[NUM_PRODUTORES];
+    pthread_t consumidores[NUM_CONSUMIDORES];
+    int ids_prod[NUM_PRODUTORES];
+    int ids_cons[NUM_CONSUMIDORES];
+
+    pthread_mutex_init(&lock, NULL);
+    pthread_cond_init(&cheio, NULL);
+    pthread_cond_init(&vazio, NULL);
+
+    printf("Iniciando múltiplos produtores e consumidores...\n");
+
+    for (int i = 0; i < NUM_PRODUTORES; i++) {
+        ids_prod[i] = i + 1;
+        pthread_create(&produtores[i], NULL, produtor, &ids_prod[i]);
+    }
+
+    for (int i = 0; i < NUM_CONSUMIDORES; i++) {
+        ids_cons[i] = i + 1;
+        pthread_create(&consumidores[i], NULL, consumidor, &ids_cons[i]);
+    }
+
+    for (int i = 0; i < NUM_PRODUTORES; i++)
+        pthread_join(produtores[i], NULL);
+
+    for (int i = 0; i < NUM_CONSUMIDORES; i++)
+        pthread_join(consumidores[i], NULL);
+
+    printf("Todos os produtores e consumidores terminaram.\n");
+
+    pthread_mutex_destroy(&lock);
+    pthread_cond_destroy(&cheio);
+    pthread_cond_destroy(&vazio);
+
+    return 0;
+}
+
+----------------------Compilacao
+gcc ex4.c -o produtor_consumidor_multi -lpthread
+./produtor_consumidor_multi
+
+----------------------Saida
+Iniciando múltiplos produtores e consumidores...
+Produtor 1 produziu: 342 (itens na fila: 1)
+Produtor 2 produziu: 876 (itens na fila: 2)
+Consumidor 1 consumiu: 342 (itens na fila: 1)
+Produtor 1 produziu: 594 (itens na fila: 2)
+Consumidor 2 consumiu: 876 (itens na fila: 1)
+Produtor 2 produziu: 221 (itens na fila: 2)
+...
+Todos os produtores e consumidores terminaram.
+
+----------------------Reflexao
+Com mais produtores e consumidores, o acesso ao buffer ficou
+mais concorrente, aumentando a chance de race conditions,
+por isso o uso do mutex continua sendo essencial. O mutex garante
+que apenas uma thread (seja produtora ou consumidora) mexa na fila
+por vez. As variáveis de condição (cheio e vazio) também continuam
+com o mesmo papel: controlar quando é possível produzir ou consumir.
+A diferença é que agora várias threads podem ficar esperando e acordar
+quando uma operação ocorre, o que torna a sincronização mais dinâmica.

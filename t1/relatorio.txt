@@ -1,0 +1,45 @@
+Relatório – KernelSim
+Aluno: Bernardo Vieira Santos Matrícula: 2220502
+Aluno: João Victor da Silva Francisco Matrícula: 2220756
+
+O projeto é composto por três programas principais, escritos em linguagem C e organizados da seguinte forma:
+
+1. kernel_sim.c – programa principal do sistema, que atua como o kernel do simulador.
+   Ele cria e gerencia os processos de aplicação (A1..A5), realiza o escalonamento Round-Robin preemptivo, trata sinais e interrupções simuladas e coordena as operações de I/O.
+   Este programa também gera logs de execução, imprime o status atual ao receber SIGINT (Ctrl + C) e produz um relatório final de estatísticas.
+
+2. app.c – representa os processos de aplicação.
+   Cada app executa um número limitado de iterações, imprime mensagens de atividade e, com certa probabilidade, envia uma requisição de I/O ao kernel através da named pipes (FIFO).
+   Após fazer a requisição, o app se suspende até ser reativado pelo kernel.
+
+3. inter_controller.c – simula o controlador de interrupções.
+   É responsável por gerar periodicamente interrupções de três tipos (IRQ0, IRQ1, IRQ2), enviadas via FIFO.
+   Essas interrupções são tratadas pelo kernel como ticks de preempção e conclusões de I/O, respectivamente.
+
+Além dos arquivos-fonte, o projeto inclui um Makefile na raiz, que compila automaticamente os três programas com o comando make que executa a linha "gcc -Wall -Wextra -O2 -std=c11 -o exec código_fonte para cada um dos arquivos C.
+
+Testes Realizados
+
+Os testes foram realizados em dois modos de operação:
+
+1. Modo interno (com timer próprio do kernel)
+   O kernel usa um timer via setitimer para realizar preempções.
+   Comando utilizado:
+
+   ./kernel_sim --n=5 --slice=200 --max=30 --seed=42 --timer=internal
+
+   Nesse modo, o kernel sozinho é responsável por alternar entre os processos e controlar o tempo de execução de cada um.
+
+2. Modo externo (com controlador de interrupções)
+   O kernel recebe os sinais de tempo e de I/O de um processo externo (inter_controller, em outro terminal), que simula o hardware.
+   Comandos utilizados:
+
+   # Terminal 1 — Kernel
+   ./kernel_sim --n=5 --slice=200 --max=40 --seed=42 --timer=irq
+
+   # Terminal 2 — Controlador de interrupções
+   ./inter_controller --period=500 --p1=10 --p2=5 --seed=777
+
+   Nesse teste, o controlador envia interrupções periódicas (IRQ0) para preempção e (IRQ1/IRQ2) para simular o término de operações de I/O, enquanto o kernel alterna entre processos e desbloqueia os que estavam em espera.
+
+Em ambos os testes, os resultados esperados incluem logs de alternância entre processos, bloqueios e desbloqueios por I/O e um relatório final consolidando as estatísticas de execução.

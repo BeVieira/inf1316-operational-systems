@@ -1,0 +1,218 @@
+-----------------------1) Exemplo de semaforo-----------------------
+Execute o programa dado (exemplo de uso
+de semáforos) e explique sua execução. 
+
+R: O programa demonstra o uso de semáforos para sincronizar dois processos.
+Um processo cria e inicializa o semáforo, e ambos executam um loop imprimindo
+letras. As funções semaforoP e semaforoV garantem que apenas um processo por
+vez acesse a região crítica (impressão), evitando que suas saídas se misturem.
+No fim, o processo criador remove o semáforo.
+
+-----------------------2) Produtor-Consumidor-----------------------
+- Escreva um programa formado por dois
+processos concorrentes, leitor e impressor, que
+usam memória compartilhada executando um
+loop infinito. Para sincronizar as suas ações, eles
+fazem uso de semáforos.
+
+- O processo leitor fica lendo caracteres da entrada
+padrão e colocando em um buffer de 16 posições.
+Quando o buffer está cheio o processo impressor
+deve imprimi-lo na saída padrão. 
+
+-----------------------Código fonte
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/shm.h>
+#include <sys/sem.h>
+#include <string.h>
+
+#define KEY_SHM 1234
+#define KEY_SEM 5678
+#define BUFFER_SIZE 16
+
+union semun {
+    int val;
+    struct semid_ds *buf;
+    unsigned short *array;
+};
+
+void P(int semid, int num) {
+    struct sembuf op = {num, -1, 0};
+    semop(semid, &op, 1);
+}
+
+void V(int semid, int num) {
+    struct sembuf op = {num, 1, 0};
+    semop(semid, &op, 1);
+}
+
+int main() {
+    int shmid = shmget(KEY_SHM, BUFFER_SIZE, 0666 | IPC_CREAT);
+    char *buffer = (char *) shmat(shmid, NULL, 0);
+    int semid = semget(KEY_SEM, 2, 0666 | IPC_CREAT); // sem[0]=leitor, sem[1]=impressor
+
+    union semun semUnion;
+    semUnion.val = 1; semctl(semid, 0, SETVAL, semUnion); // leitor começa
+    semUnion.val = 0; semctl(semid, 1, SETVAL, semUnion); // impressor espera
+
+    if (fork() == 0) { // Processo leitor
+        while (1) {
+            P(semid, 0);
+            for (int i = 0; i < BUFFER_SIZE; i++) {
+                buffer[i] = getchar();
+                if (buffer[i] == EOF) exit(0);
+            }
+            V(semid, 1);
+        }
+    } else { // Processo impressor
+        while (1) {
+            P(semid, 1);
+            write(1, buffer, BUFFER_SIZE);
+            fflush(stdout);
+            V(semid, 0);
+        }
+    }
+    return 0;
+}
+
+----------------------Compilacao
+gcc -o leitor_impressor leitor_impressor.c
+./leitor_impressor
+
+----------------------Saida
+(Digitando:)
+abcdefghijklmnopqrstuvwx
+
+(Ao apertar enter:)
+abcdefghijklmnop
+----------------------Reflexao
+O programa mostra a sincronização entre dois processos concorrentes
+usando memória compartilhada e semáforos. O leitor escreve 16 caracteres
+no buffer e o impressor só imprime quando o leitor termina, garantindo que
+nunca acessem o buffer ao mesmo tempo. Os semáforos controlam essa alternância,
+assegurando ordem e exclusão mútua na comunicação entre os processos.
+
+-----------------------3) Exemplo de semaforo-----------------------
+Faça programas para alterar um valor de uma variável na memória compartilhada.
+Um programa soma 1 à variável e o outro soma 5 à variável. Utilize semáforos para
+alterar a variável (região crítica). 
+
+-----------------------Código fonte
+> memoria.h:
+#define KEY_SHM 1234
+#define KEY_SEM 5678
+
+union semun {
+    int val;
+    struct semid_ds *buf;
+    unsigned short *array;
+};
+
+void P(int semid) {
+    struct sembuf op = {0, -1, 0};
+    semop(semid, &op, 1);
+}
+
+void V(int semid) {
+    struct sembuf op = {0, 1, 0};
+    semop(semid, &op, 1);
+}
+
+> soma1.c
+#include <stdio.h>
+#include <sys/shm.h>
+#include <sys/sem.h>
+#include "memoria.h"
+
+int main() {
+    int shmid = shmget(KEY_SHM, sizeof(int), 0666 | IPC_CREAT);
+    int *valor = (int *) shmat(shmid, NULL, 0);
+
+    int semid = semget(KEY_SEM, 1, 0666 | IPC_CREAT);
+    union semun semUnion;
+    semUnion.val = 1;
+    semctl(semid, 0, SETVAL, semUnion);
+
+    while (1) {
+        P(semid);
+        (*valor) += 1;
+        printf("Somou 1 → valor = %d\n", *valor);
+        V(semid);
+        sleep(1);
+    }
+}
+
+> soma5.c:
+#include <stdio.h>
+#include <sys/shm.h>
+#include <sys/sem.h>
+#include "memoria.h"
+
+int main() {
+    int shmid = shmget(KEY_SHM, sizeof(int), 0666);
+    int *valor = (int *) shmat(shmid, NULL, 0);
+    int semid = semget(KEY_SEM, 1, 0666);
+
+    while (1) {
+        P(semid);
+        (*valor) += 5;
+        printf("Somou 5 → valor = %d\n", *valor);
+        V(semid);
+        sleep(1);
+    }
+}
+
+----------------------Compilacao
+gcc -o soma1 soma1.c
+gcc -o soma5 soma5.c
+
+> em um terminal:
+./soma1
+
+> em outro terminal:
+./soma5
+
+----------------------Saida
+> Terminal 1
+Somou 1 → valor = 1
+Somou 1 → valor = 2
+Somou 1 → valor = 3
+Somou 1 → valor = 4
+Somou 1 → valor = 5
+Somou 1 → valor = 6 (Aqui foi iniciado o programa soma5)
+Somou 1 → valor = 12
+Somou 1 → valor = 18
+Somou 1 → valor = 24
+Somou 1 → valor = 30
+Somou 1 → valor = 36
+Somou 1 → valor = 42
+Somou 1 → valor = 48
+^C
+
+> Terminal 2:
+Somou 5 → valor = 11
+Somou 5 → valor = 17
+Somou 5 → valor = 23
+Somou 5 → valor = 29
+Somou 5 → valor = 35
+Somou 5 → valor = 41
+Somou 5 → valor = 47
+Somou 5 → valor = 53 (Aqui foi finalizado o programa soma1)
+Somou 5 → valor = 58
+Somou 5 → valor = 63
+Somou 5 → valor = 68
+Somou 5 → valor = 73
+^C
+
+----------------------Reflexao
+O exercício demonstra o uso de memória
+compartilhada e semáforos para sincronizar
+processos concorrentes. A variável é um recurso
+comum, e o semáforo garante que apenas um processo
+por vez possa alterá-la, evitando resultados incorretos
+por acesso simultâneo. Esse controle ilustra o conceito
+de exclusão mútua, essencial em sistemas concorrentes
+para manter a consistência dos dados e evitar condições
+de corrida.

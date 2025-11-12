@@ -1,0 +1,247 @@
+-----------------------1) Lista Arquivo-----------------------
+Use o programa listaarquivo.c para imprimir o
+numero de inode, o tamanho (em bytes) e a idade em
+dias de cada arquivo do diretório corrente. Lembre-se
+que stat() espera o path completo do arquivo
+
+-----------------------Código fonte
+#include <sys/types.h>
+#include <sys/dir.h>
+#include <sys/param.h>
+#include <sys/stat.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+
+extern int alphasort();
+char pathname[MAXPATHLEN];
+
+int file_select(struct direct *entry) {
+  if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+    return 0;
+  else
+    return 1;
+}
+
+int main() {
+  int count, i;
+  struct direct **files;
+
+  if (getwd(pathname) == NULL) {
+    printf("Error getting path\n");
+    exit(1);
+  }
+
+  printf("Current Working Directory = %s\n", pathname);
+  count = scandir(pathname, &files, file_select, alphasort);
+
+  if (count <= 0) {
+    printf("No files in this directory\n");
+    exit(0);
+  }
+
+  printf("Number of files = %d\n", count);
+  printf("---------------------------------------------------------------\n");
+  printf("%-25s %-10s %-10s %-10s\n", "File", "Inode", "Size(bytes)", "Age(days)");
+  printf("---------------------------------------------------------------\n");
+
+  for (i = 0; i < count; i++) {
+    char fullpath[MAXPATHLEN];
+    struct stat info;
+    time_t now = time(NULL);
+
+    sprintf(fullpath, "%s/%s", pathname, files[i]->d_name);
+
+    if (stat(fullpath, &info) == 0) {
+      double age_days = difftime(now, info.st_mtime) / (60 * 60 * 24);
+      printf("%-25s %-10lu %-10ld %-10.1f\n",
+              files[i]->d_name,
+              (unsigned long) info.st_ino,
+              (long) info.st_size,
+              age_days);
+    } else {
+      perror("stat");
+    }
+
+    free(files[i]);
+  }
+
+  free(files);
+  return 0;
+}
+
+
+----------------------Compilacao
+gcc -o listaarquivo listaarquivo.c 
+./listaarquivo
+
+----------------------Saida
+Current Working Directory = /home/bernardo/puc/inf1316-operational-systems/lab9
+Number of files = 4
+---------------------------------------------------------------
+File                      Inode      Size(bytes) Age(days) 
+---------------------------------------------------------------
+README.md                 51439      694        48.9    //Arquivo de outro diretorio movido para ver um Age > 0  
+listaarquivo              62903      16568      0.0       
+listaarquivo.c            38605      1562       0.0       
+relatorio.txt             36994      1955       0.0   
+
+----------------------Reflexao
+O programa original apenas listava os nomes dos
+arquivos do diretório, mas não mostrava informações
+detalhadas sobre eles. A principal limitação era que
+ele usava scandir() para listar os arquivos, porém
+não chamava stat(), que é a função responsável por obter
+dados como tamanho, número de inode e tempo de modificação.
+Além disso, faltava tratar corretamente o caminho completo do
+arquivo, o que é essencial para que stat() funcione.
+
+Depois das alterações, o código passou a construir o caminho
+completo de cada arquivo, usar stat() para coletar as informações
+e calcular a idade em dias a partir da diferença entre o tempo
+atual e a última modificação. Assim, o programa não só lista os
+arquivos, mas também apresenta dados úteis sobre cada um, cumprindo
+o objetivo proposto.
+
+-----------------------2) Número de links-----------------------
+2. Modifique o programa anterior para mostrar o número de links que cada arquivo
+possui. Depois, no diretório corrente, execute o o comando da shell ln <arquivo>
+<nomeLink> e veja o que mudou na saída de seu programa
+
+-----------------------Código fonte
+#include <sys/types.h>
+#include <sys/dir.h>
+#include <sys/param.h>
+#include <sys/stat.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+
+extern int alphasort();
+char pathname[MAXPATHLEN];
+
+int file_select(struct direct *entry) {
+  if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+    return 0;
+  else
+    return 1;
+}
+
+int main() {
+  int count, i;
+  struct direct **files;
+
+  if (getwd(pathname) == NULL) {
+    printf("Error getting path\n");
+    exit(1);
+  }
+
+  printf("Current Working Directory = %s\n", pathname);
+  count = scandir(pathname, &files, file_select, alphasort);
+
+  if (count <= 0) {
+    printf("No files in this directory\n");
+    exit(0);
+  }
+
+  printf("Number of files = %d\n", count);
+  printf("--------------------------------------------------------------------------\n");
+  printf("%-25s %-10s %-10s %-10s %-10s\n", "File", "Inode", "Size", "Links", "Age(days)");
+  printf("--------------------------------------------------------------------------\n");
+
+  for (i = 0; i < count; i++) {
+      char fullpath[MAXPATHLEN];
+      struct stat info;
+      time_t now = time(NULL);
+
+      sprintf(fullpath, "%s/%s", pathname, files[i]->d_name);
+
+      if (stat(fullpath, &info) == 0) {
+        double age_days = difftime(now, info.st_mtime) / (60 * 60 * 24);
+        printf("%-25s %-10lu %-10ld %-10lu %-10.1f\n",
+                files[i]->d_name,
+                (unsigned long) info.st_ino,
+                (long) info.st_size,
+                (unsigned long) info.st_nlink,
+                age_days);
+      } else {
+        perror("stat");
+      }
+
+    free(files[i]);
+  }
+
+  free(files);
+  return 0;
+}
+
+----------------------Compilacao
+gcc -o listaarquivo listaarquivo2.c 
+./listaarquivo
+ln listaarquivo2.c linkDoPrograma
+
+----------------------Saida
+Current Working Directory = /home/bernardo/puc/inf1316-operational-systems/lab9
+Number of files = 4
+--------------------------------------------------------------------------
+File                      Inode      Size       Links      Age(days) 
+--------------------------------------------------------------------------
+listaarquivo              62903      16568      1          0.0       
+listaarquivo.c            38605      1562       1          0.0       
+listaarquivo2.c           62891      1673       1          0.0       
+relatorio.txt             36994      5485       1          0.0  
+
+> Após executar o comando
+
+Current Working Directory = /home/bernardo/puc/inf1316-operational-systems/lab9
+Number of files = 5
+--------------------------------------------------------------------------
+File                      Inode      Size       Links      Age(days) 
+--------------------------------------------------------------------------
+linkDoPrograma            62891      1673       2          0.0       
+listaarquivo              62903      16568      1          0.0       
+listaarquivo.c            38605      1562       1          0.0       
+listaarquivo2.c           62891      1673       2          0.0       
+relatorio.txt             36994      5485       1          0.0  
+----------------------Reflexao
+Depois da modificação, o programa passou a mostrar também o número
+de links de cada arquivo, obtido com o campo st_nlink da estrutura
+stat. Esse número indica quantos nomes (entradas de diretório)
+apontam para o mesmo arquivo físico no disco.
+
+Quando eu crio um link com o comando os dois passam a compartilhar
+o mesmo inode. Ao rodar o programa novamente, dá pra ver que o valor
+de “Links” aumentou de 1 para 2, mostrando que agora existem dois
+caminhos diferentes apontando para o mesmo conteúdo. Isso deixa
+claro que links não são cópias, mas apenas outros nomes para o
+mesmo arquivo real.
+
+-----------------------3) Diretório recursivamente-----------------------
+Escreva um programa que percorre recursivamente um diretório, a partir do
+diretório corrente, somando o tamanho de todos os arquivos encontrados.
+
+-----------------------Código fonte
+
+----------------------Compilacao
+
+----------------------Saida
+
+----------------------Reflexao
+
+-----------------------4) Aninhamento de diretório e arquivos-----------------------
+Modifique o programa anterior para mostrar recursivamente os diretórios e arquivos
+aninhados.
+
+Dica: use printf(“%*s[%s]\n”,level, “”,entry->dname) para imprimir com a identação
+correspondente ao nivel de
+recursão 
+
+-----------------------Código fonte
+
+----------------------Compilacao
+
+----------------------Saida
+
+----------------------Reflexao

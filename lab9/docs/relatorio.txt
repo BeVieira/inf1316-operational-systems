@@ -223,12 +223,91 @@ Escreva um programa que percorre recursivamente um diretório, a partir do
 diretório corrente, somando o tamanho de todos os arquivos encontrados.
 
 -----------------------Código fonte
+#include <stdio.h>
+#include <stdlib.h>
+#include <dirent.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <limits.h>
+#include <string.h>
+
+#define PATH_MAX 4096
+
+
+long long soma_dir(const char *path) {
+    DIR *dir;
+    struct dirent *entry;
+    struct stat st;
+    char fullpath[PATH_MAX];
+    long long total = 0;
+
+    dir = opendir(path);
+    if (!dir) {
+        perror(path);
+        return 0;
+    }
+
+    while ((entry = readdir(dir)) != NULL) {
+        if (strcmp(entry->d_name, ".") == 0 ||
+            strcmp(entry->d_name, "..") == 0) {
+            continue;
+        }
+
+        snprintf(fullpath, sizeof(fullpath), "%s/%s", path, entry->d_name);
+
+        if (stat(fullpath, &st) == -1) {
+            perror("stat");
+            continue;
+        }
+
+        if (S_ISDIR(st.st_mode)) { /*subdiretório*/
+            total += soma_dir(fullpath);
+        } else if (S_ISREG(st.st_mode)) { /*arquivo regular*/
+            total += st.st_size;
+        } else { /*outro tipo de arquivo*/
+            continue;
+        }
+    }
+
+    closedir(dir);
+    return total;
+}
+
+int main(void) {
+    char path[PATH_MAX];
+
+    if (getcwd(path, sizeof(path)) == NULL) {
+        perror("getcwd");
+        return 1;
+    }
+
+    printf("Diretório inicial: %s\n", path);
+
+    long long total = soma_dir(path);
+
+    printf("Tamanho total dos arquivos (bytes): %lld\n", total);
+
+    return 0;
+}
 
 ----------------------Compilacao
 
+gcc -o ex3 ex3.c
+
 ----------------------Saida
 
+jvsfrancisco@note-jv:~/projects/inf1316-operational-systems/lab9$ ./ex3
+Diretório inicial: /home/jvsfrancisco/projects/inf1316-operational-systems/lab9
+Tamanho total dos arquivos (bytes): 29356
+
 ----------------------Reflexao
+
+A função recursiva soma_dir faz um percurso em profundidade 
+na árvore de diretórios: para cada entrada, se for um subdiretório, 
+chama a si mesma; se for arquivo regular, soma st_size.
+O valor final é parecido com o que utilitários como du calculam.
+O resultado muda conforme o que existe no diretório: se eu criar 
+ou apagar arquivos, ou mudar o conteúdo, o valor somado também muda.
 
 -----------------------4) Aninhamento de diretório e arquivos-----------------------
 Modifique o programa anterior para mostrar recursivamente os diretórios e arquivos
@@ -240,8 +319,108 @@ recursão
 
 -----------------------Código fonte
 
+#include <stdio.h>
+#include <dirent.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <string.h>
+
+#define PATH_MAX 4096
+
+void print_tree(const char *path, const char *prefix) {
+    DIR *dir = opendir(path);
+    if (!dir) {
+        perror(path);
+        return;
+    }
+
+    struct dirent *entry;
+    int total = 0;
+
+    while ((entry = readdir(dir)) != NULL) {
+        if (strcmp(entry->d_name, ".") == 0 ||
+            strcmp(entry->d_name, "..") == 0) {
+            continue;
+        }
+        total++;
+    }
+
+    rewinddir(dir);
+
+    int idx = 0;
+
+    while ((entry = readdir(dir)) != NULL) {
+        if (strcmp(entry->d_name, ".") == 0 ||
+            strcmp(entry->d_name, "..") == 0) {
+            continue;
+        }
+
+        idx++;
+        int is_last = (idx == total);
+
+        printf("%s%s%s\n",
+               prefix,
+               is_last ? "└── " : "├── ",
+               entry->d_name);
+
+        char child_path[PATH_MAX];
+        struct stat st;
+
+        sprintf(child_path, "%s/%s", path, entry->d_name);
+
+        if (stat(child_path, &st) == -1) {
+            perror("stat");
+            continue;
+        }
+
+        if (S_ISDIR(st.st_mode)) {
+            char new_prefix[PATH_MAX];
+            sprintf(new_prefix, "%s%s",
+                    prefix,
+                    is_last ? "    " : "│   ");
+
+            print_tree(child_path, new_prefix);
+        }
+    }
+
+    closedir(dir);
+}
+
+int main(void) {
+    char path[PATH_MAX];
+
+    if (getcwd(path, sizeof(path)) == NULL) {
+        perror("getcwd");
+        return 1;
+    }
+
+    printf("%s\n", path);
+    print_tree(path, "");
+
+    return 0;
+}
+
 ----------------------Compilacao
+
+gcc -Wall -Wextra -o ex4 ex4.c
 
 ----------------------Saida
 
+jvsfrancisco@note-jv:~/projects/inf1316-operational-systems/lab9$ ./ex4
+/home/jvsfrancisco/projects/inf1316-operational-systems/lab9
+├── ex4.c
+├── listaarquivo.c
+├── ex3.c
+├── ex4
+├── docs
+│   └── relatorio.txt
+└── listaarquivo2.c
+
 ----------------------Reflexao
+A partir do diretório atual, o programa imprime o nome do diretório raiz 
+e depois chama lista_dir recursivamente.A cada nível de recursão, 
+a indentação aumenta (level * 2 espaços), o que cria uma visualização em 
+árvore da estrutura de diretórios. Isso ajuda a enxergar como os 
+diretórios se aninham e como o sistema de arquivos é uma árvore, 
+conceito importante quando pensamos em percursos recursivos e na 
+implementação de comandos como tree.
